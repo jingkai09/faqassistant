@@ -10,8 +10,14 @@ openai.api_key =  st.secrets["mykey"]
 # Load the CSV file
 df = pd.read_csv('qa_dataset_with_embeddings.csv')
 
-# Convert embeddings from strings to numpy arrays
-df['Question_Embedding'] = df['Question_Embedding'].apply(lambda x: np.array(eval(x)))
+# Convert embeddings from strings to numpy arrays and check the dimensions
+def convert_embedding(embedding_str):
+    embedding = np.array(eval(embedding_str))
+    if len(embedding.shape) != 1:  # Ensure it's a 1D array
+        raise ValueError(f"Invalid embedding shape: {embedding.shape}")
+    return embedding
+
+df['Question_Embedding'] = df['Question_Embedding'].apply(convert_embedding)
 
 # Load the embedding model
 model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -26,8 +32,17 @@ if st.button('Get Answer'):
         # Generate embedding for the user's question
         user_embedding = model.encode([user_question])[0]
         
+        # Debugging: Check the shape of the user's embedding
+        st.write(f"User question embedding shape: {user_embedding.shape}")
+        
         # Compute cosine similarity between user embedding and dataset embeddings
-        df['similarity'] = df['Question_Embedding'].apply(lambda x: cosine_similarity([user_embedding], [x]).flatten()[0])
+        try:
+            df['similarity'] = df['Question_Embedding'].apply(
+                lambda x: cosine_similarity([user_embedding], [x]).flatten()[0]
+            )
+        except ValueError as e:
+            st.write(f"Error in cosine similarity calculation: {e}")
+            st.stop()
         
         # Find the highest similarity score
         max_similarity = df['similarity'].max()
@@ -46,3 +61,4 @@ if st.button('Get Answer'):
 # Clear button to reset input field
 if st.button('Clear'):
     st.experimental_rerun()
+
