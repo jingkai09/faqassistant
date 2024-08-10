@@ -3,73 +3,47 @@ import pandas as pd
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-import openai
 
-# Set up OpenAI API key (make sure to set this in Streamlit secrets)
-openai.api_key = st.secrets["mykey"]
-
-# Load the CSV file
+# Load the dataset
 df = pd.read_csv('qa_dataset_with_embeddings.csv')
 
-# Convert embeddings from strings to numpy arrays and check the dimensions
-def convert_embedding(embedding_str):
-    embedding = np.array(eval(embedding_str))
-    if len(embedding.shape) != 1:  # Ensure it's a 1D array
-        raise ValueError(f"Invalid embedding shape: {embedding.shape}")
-    return embedding
+# Convert the embeddings from strings to arrays
+df['Question_Embedding'] = df['Question_Embedding'].apply(lambda x: np.fromstring(x.strip("[]"), sep=","))
 
-df['Question_Embedding'] = df['Question_Embedding'].apply(convert_embedding)
+# Load the pre-trained embedding model
+model = SentenceTransformer('all-MiniLM-L6-v2')
 
-# Load the embedding model
-model = SentenceTransformer('all-MiniLM-L6-v2')  # Or use the correct model for your dataset
+# Streamlit app title
+st.title('Smart FAQ Assistant')
 
-# Regenerate embeddings for the entire dataset if necessary (if using a new model)
-# Uncomment this if you're regenerating the embeddings:
-# df['Question_Embedding'] = df['Question'].apply(lambda q: model.encode(q))
+# Input field for user questions
+user_question = st.text_input("Enter your question about heart, lung, or blood health:")
 
-# Streamlit interface
-st.title('Health Q&A Assistant')
+# Button to trigger the answer search
+search_button = st.button("Find Answer")
 
-user_question = st.text_input("Ask a question about heart, lung, or blood health:")
-
-if st.button('Get Answer'):
-    if user_question:
-        # Generate embedding for the user's question
-        user_embedding = model.encode([user_question])[0]
-        
-        # Debugging: Check the shape of the user's embedding
-        st.write(f"User question embedding shape: {user_embedding.shape}")
-
-        # Print out first embedding from the dataset for comparison
-        st.write(f"First dataset embedding shape: {df['Question_Embedding'].iloc[0].shape}")
-        
-        # Compute cosine similarity between user embedding and dataset embeddings
-        try:
-            df['similarity'] = df['Question_Embedding'].apply(
-                lambda x: cosine_similarity([user_embedding], [x]).flatten()[0]
-            )
-        except ValueError as e:
-            st.write(f"Error in cosine similarity calculation: {e}")
-            st.stop()
-        
-        # Find the highest similarity score
-        max_similarity = df['similarity'].max()
-        best_match = df.loc[df['similarity'].idxmax()]
-        
-        # Debugging: Print out max similarity and corresponding answer
-        st.write(f"Max similarity: {max_similarity}")
-        st.write(f"Best match answer: {best_match['Answer']}")
-        
-        # Set a threshold for the similarity score
-        threshold = 0.75
-        if max_similarity > threshold:
-            st.write(f"**Answer:** {best_match['Answer']}")
-            st.write(f"**Similarity Score:** {max_similarity:.2f}")
-        else:
-            st.write("I apologize, but I don't have information on that topic yet. Could you please ask another question?")
+# When the button is clicked
+if search_button and user_question:
+    # Generate embedding for the user's question
+    user_embedding = model.encode([user_question])
+    
+    # Calculate cosine similarity between user question and dataset questions
+    similarities = cosine_similarity(user_embedding, np.vstack(df['Question_Embedding'].values))
+    
+    # Find the most similar question
+    max_similarity = similarities.max()
+    if max_similarity > 0.7:  # Adjust this threshold as needed
+        most_similar_idx = similarities.argmax()
+        answer = df.iloc[most_similar_idx]['Answer']
+        st.write(f"**Answer:** {answer}")
+        st.write(f"**Similarity Score:** {max_similarity:.2f}")
     else:
-        st.write("Please enter a question.")
+        st.write("I apologize, but I don't have information on that topic yet. Could you please ask other questions?")
 
-# Clear button to reset input field
-if st.button('Clear'):
-    st.experimental_rerun()
+# Clear button to reset the input field
+if st.button("Clear"):
+    st.experimental_rerun()  # Reset the input field
+
+# Option to show common FAQs
+if st.checkbox("Show common FAQs"):
+    st.write(df[['Question', 'Answer']].head(10))  # Display the first 10 FAQs
