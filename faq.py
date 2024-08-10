@@ -5,7 +5,8 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import openai
 
-openai.api_key =  st.secrets["mykey"]
+# Set up OpenAI API key (make sure to set this in Streamlit secrets)
+openai.api_key = st.secrets["mykey"]
 
 # Load the CSV file
 df = pd.read_csv('qa_dataset_with_embeddings.csv')
@@ -19,8 +20,8 @@ def convert_embedding(embedding_str):
 
 df['Question_Embedding'] = df['Question_Embedding'].apply(convert_embedding)
 
-# Load the embedding model
-model = SentenceTransformer('all-MiniLM-L6-v2')
+# Load the embedding model that matches the dataset's embeddings
+model = SentenceTransformer('sentence-transformers/paraphrase-mpnet-base-v2')  # Adjust to match the correct model
 
 # Streamlit interface
 st.title('Health Q&A Assistant')
@@ -61,4 +62,3 @@ if st.button('Get Answer'):
 # Clear button to reset input field
 if st.button('Clear'):
     st.experimental_rerun()
-
