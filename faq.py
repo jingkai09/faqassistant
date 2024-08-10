@@ -20,8 +20,12 @@ def convert_embedding(embedding_str):
 
 df['Question_Embedding'] = df['Question_Embedding'].apply(convert_embedding)
 
-# Load the embedding model that matches the dataset's embeddings
-model = SentenceTransformer('sentence-transformers/paraphrase-mpnet-base-v2')  # Adjust to match the correct model
+# Load the embedding model
+model = SentenceTransformer('all-MiniLM-L6-v2')  # Or use the correct model for your dataset
+
+# Regenerate embeddings for the entire dataset if necessary (if using a new model)
+# Uncomment this if you're regenerating the embeddings:
+# df['Question_Embedding'] = df['Question'].apply(lambda q: model.encode(q))
 
 # Streamlit interface
 st.title('Health Q&A Assistant')
@@ -35,6 +39,9 @@ if st.button('Get Answer'):
         
         # Debugging: Check the shape of the user's embedding
         st.write(f"User question embedding shape: {user_embedding.shape}")
+
+        # Print out first embedding from the dataset for comparison
+        st.write(f"First dataset embedding shape: {df['Question_Embedding'].iloc[0].shape}")
         
         # Compute cosine similarity between user embedding and dataset embeddings
         try:
@@ -48,6 +55,10 @@ if st.button('Get Answer'):
         # Find the highest similarity score
         max_similarity = df['similarity'].max()
         best_match = df.loc[df['similarity'].idxmax()]
+        
+        # Debugging: Print out max similarity and corresponding answer
+        st.write(f"Max similarity: {max_similarity}")
+        st.write(f"Best match answer: {best_match['Answer']}")
         
         # Set a threshold for the similarity score
         threshold = 0.75
