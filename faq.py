@@ -1,43 +1,48 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import openai 
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+import openai
 
 openai.api_key =  st.secrets["mykey"]
 
-# Load data and embeddings
-data = pd.read_csv("qa_dataset_with_embeddings.csv")
-question_embeddings = data['Question_Embedding'].values  # Assuming embeddings are stored as a NumPy array
+# Load the CSV file
+df = pd.read_csv('qa_dataset_with_embeddings.csv')
 
-def find_answer(user_question, question_embeddings, data):
-    # Load the user's question embedding (assuming you have a function to generate this)
-    user_embedding = generate_user_embedding(user_question)  # Replace with your embedding generation function
+# Convert embeddings from strings to numpy arrays
+df['Question_Embedding'] = df['Question_Embedding'].apply(lambda x: np.array(eval(x)))
 
-    # Calculate cosine similarity
-    similarities = np.dot(question_embeddings, user_embedding) / (np.linalg.norm(question_embeddings, axis=1) * np.linalg.norm(user_embedding))
+# Load the embedding model
+model = SentenceTransformer('all-MiniLM-L6-v2')
 
-    # Find the most similar question
-    most_similar_index = np.argmax(similarities)
-    similarity_score = similarities[most_similar_index]
+# Streamlit interface
+st.title('Health Q&A Assistant')
 
-    # Set a similarity threshold (you can adjust this)
-    threshold = 0.7
+user_question = st.text_input("Ask a question about heart, lung, or blood health:")
 
-    if similarity_score > threshold:
-        answer = data['Answer'][most_similar_index]
-        return answer, similarity_score
+if st.button('Get Answer'):
+    if user_question:
+        # Generate embedding for the user's question
+        user_embedding = model.encode([user_question])[0]
+        
+        # Compute cosine similarity between user embedding and dataset embeddings
+        df['similarity'] = df['Question_Embedding'].apply(lambda x: cosine_similarity([user_embedding], [x]).flatten()[0])
+        
+        # Find the highest similarity score
+        max_similarity = df['similarity'].max()
+        best_match = df.loc[df['similarity'].idxmax()]
+        
+        # Set a threshold for the similarity score
+        threshold = 0.75
+        if max_similarity > threshold:
+            st.write(f"**Answer:** {best_match['Answer']}")
+            st.write(f"**Similarity Score:** {max_similarity:.2f}")
+        else:
+            st.write("I apologize, but I don't have information on that topic yet. Could you please ask another question?")
     else:
-        return "I apologize, but I don't have information on that topic yet. Could you please ask other questions?", None
+        st.write("Please enter a question.")
 
-def main():
-    st.title("Health FAQ Assistant")
-
-    user_question = st.text_input("Ask your health question:")
-    if st.button("Submit"):
-        answer, similarity_score = find_answer(user_question, question_embeddings, data)
-        st.text_area("Answer:", answer)
-        if similarity_score:
-            st.write("Similarity score:", similarity_score)
-
-if __name__ == "__main__":
-    main()
+# Clear button to reset input field
+if st.button('Clear'):
+    st.experimental_rerun()
